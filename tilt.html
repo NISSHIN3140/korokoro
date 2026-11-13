@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>ころころ迷路 コントローラー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EFE5D3; --ink:#2B2018; --muted:#6E5B47; --chip:#E2D3B8;
+  --wood:#D9B479; --wood-edge:#8B5A2B; --grain:#CDA66B; --hole:#2A1A0F;
+  --go:#2E8B57; --go-edge:#1D5C39; --go-ink:#FFFFFF; --err:#A8231B;
+  --font:"M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Hiragino Sans",system-ui,sans-serif;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#1E1813; --ink:#F3E6CF; --muted:#B8A486; --chip:#2F261E;
+    --wood:#B98F55; --wood-edge:#6B4420; --grain:#A87F48; --hole:#120B06;
+    --go:#36A267; --go-edge:#1D5C39; --go-ink:#FFFFFF; --err:#FF8F85;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1E1813; --ink:#F3E6CF; --muted:#B8A486; --chip:#2F261E;
+  --wood:#B98F55; --wood-edge:#6B4420; --grain:#A87F48; --hole:#120B06;
+  --go:#36A267; --go-edge:#1D5C39; --go-ink:#FFFFFF; --err:#FF8F85;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.5;
+  touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;touch-action:manipulation}
+button:focus-visible{outline:3px solid var(--go);outline-offset:3px}
+
+.wrap{max-width:420px;margin:0 auto;padding:12px 16px 20px;display:flex;flex-direction:column;align-items:center;gap:14px;min-height:100%}
+.top{width:100%;display:flex;align-items:center;justify-content:space-between}
+.top h1{margin:0;font-size:20px;font-weight:800}
+.conn{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;background:var(--chip);font-weight:800;font-size:14px}
+.led{width:10px;height:10px;border-radius:50%;background:var(--muted)}
+.conn.on .led{background:#3BB54A;box-shadow:0 0 6px #3BB54A}
+
+.perm{width:100%;padding:12px;border-radius:14px;background:var(--go);color:var(--go-ink);font-weight:800}
+.perm[hidden]{display:none}
+
+/* 木のトレイ */
+.tray{position:relative;width:min(82vw,330px);aspect-ratio:1;border-radius:28px;
+  background:
+    repeating-linear-gradient(176deg,transparent 0 17px,var(--grain) 17px 19px,transparent 19px 31px),
+    var(--wood);
+  border:12px solid var(--wood-edge);
+  box-shadow:inset 0 6px 14px rgba(0,0,0,.28)}
+.tray::before{content:"";position:absolute;left:50%;top:50%;width:38%;aspect-ratio:1;transform:translate(-50%,-50%);
+  border-radius:50%;border:3px dashed var(--grain)}
+.ball{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;
+  background:radial-gradient(circle at 34% 30%,#FFFFFF 0 10%,#C9CED4 28%,#7D858E 75%,#4E555D 100%);
+  box-shadow:4px 6px 6px rgba(60,35,10,.45);will-change:transform}
+.tray.drag{outline:3px solid var(--go);outline-offset:4px}
+
+.msg{margin:0;min-height:1.5em;font-size:14px;color:var(--muted);text-align:center}
+.msg.err{color:var(--err);font-weight:800}
+
+.controls{width:100%;display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center}
+.side{display:flex;flex-direction:column;gap:10px}
+.side button{padding:10px 12px;border-radius:12px;background:var(--chip);font-weight:800;font-size:14px}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border-radius:12px;background:var(--chip);padding:3px;gap:3px}
+.seg button{padding:7px 0;border-radius:9px;font-size:13px;font-weight:800;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--bg);color:var(--ink)}
+.seg-label{font-size:12px;color:var(--muted);margin:0 0 -6px 2px}
+
+.action{width:118px;height:118px;border-radius:50%;background:var(--go);color:var(--go-ink);font-size:20px;font-weight:800;
+  border-bottom:7px solid var(--go-edge);box-shadow:0 4px 10px rgba(0,0,0,.2);transition:transform .05s}
+.action.down{transform:translateY(5px);border-bottom-width:2px}
+
+.hint{margin:auto 0 0;font-size:12px;color:var(--muted);text-align:center}
+@media (prefers-reduced-motion:reduce){.action{transition:none}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header class="top">
+    <h1>ころころ迷路</h1>
+    <button id="btnConn" class="conn" type="button"><span class="led"></span><span id="connLabel">PCに接続</span></button>
+  </header>
+
+  <button id="btnPerm" class="perm" type="button" hidden>傾きセンサーを使えるようにする</button>
+
+  <div id="tray" class="tray" aria-label="傾きの表示。センサーがないときは指でなぞって操作できます">
+    <div id="ball" class="ball"></div>
+  </div>
+
+  <p id="msg" class="msg" aria-live="polite"></p>
+
+  <div class="controls">
+    <div class="side">
+      <button id="btnZero" type="button">今の角度を水平にする</button>
+      <p class="seg-label">感度</p>
+      <div class="seg" id="seg">
+        <button type="button" data-r="32">ゆっくり</button>
+        <button type="button" data-r="22">ふつう</button>
+        <button type="button" data-r="14">びんかん</button>
+      </div>
+    </div>
+    <button id="btnAction" class="action" type="button">スタート</button>
+  </div>
+
+  <p class="hint">画面の向きのロックをオンにして、iPhoneを手のひらに水平に乗せて遊びます。</p>
+</main>
+
+<script>
+const SVC = '6b1e0101-6e4b-4f2a-9d3c-1a7f2c0e5b01';
+const CH  = '6b1e0102-6e4b-4f2a-9d3c-1a7f2c0e5b01';
+const $ = id => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+};
+
+const st = { dev: null, ch: null, inflight: false,
+  beta: 0, gamma: 0, beta0: 0, gamma0: 0, sensor: false,
+  drag: null, tx: 0, ty: 0, held: false, latch: false,
+  range: store.get('tilt.range', 22) };
+
+function say(t, err = false) { const m = $('msg'); m.textContent = t; m.classList.toggle('err', err); }
+
+/* ---------- 傾きセンサー ---------- */
+function onOrientation(e) {
+  if (e.beta == null || e.gamma == null) return;
+  if (!st.sensor) { st.sensor = true; st.beta0 = 0; st.gamma0 = 0; }
+  st.beta = e.beta; st.gamma = e.gamma;
+}
+function listenSensor() { window.addEventListener('deviceorientation', onOrientation); }
+
+const needsPermission = typeof DeviceOrientationEvent !== 'undefined'
+  && typeof DeviceOrientationEvent.requestPermission === 'function';
+if (needsPermission) {
+  $('btnPerm').hidden = false;
+  $('btnPerm').onclick = async () => {
+    try {
+      const r = await DeviceOrientationEvent.requestPermission();
+      if (r === 'granted') { listenSensor(); $('btnPerm').hidden = true; say('センサーが使えるようになりました。次は「PCに接続」を押してください'); }
+      else say('センサーの使用が許可されませんでした。トレイを指でなぞっても遊べます', true);
+    } catch (e) { say('センサーを有効にできませんでした：' + e.message, true); }
+  };
+} else {
+  listenSensor();
+}
+
+function axis(v) {
+  let d = v;
+  if (Math.abs(d) < 1.5) d = 0;
+  return Math.max(-100, Math.min(100, Math.round(d / st.range * 100)));
+}
+
+/* ---------- 指でなぞる操作（センサーがないとき用） ---------- */
+const tray = $('tray');
+function dragAt(e) {
+  const r = tray.getBoundingClientRect();
+  const nx = (e.clientX - r.left) / r.width * 2 - 1, ny = (e.clientY - r.top) / r.height * 2 - 1;
+  st.drag = [Math.max(-100, Math.min(100, Math.round(nx * 130))), Math.max(-100, Math.min(100, Math.round(ny * 130)))];
+}
+tray.addEventListener('pointerdown', e => { tray.setPointerCapture(e.pointerId); tray.classList.add('drag'); dragAt(e); });
+tray.addEventListener('pointermove', e => { if (st.drag) dragAt(e); });
+['pointerup', 'pointercancel'].forEach(t => tray.addEventListener(t, () => { st.drag = null; tray.classList.remove('drag'); }));
+
+/* ---------- 表示ループ ---------- */
+function frame() {
+  if (st.drag) { [st.tx, st.ty] = st.drag; }
+  else if (st.sensor) { st.tx = axis(st.gamma - st.gamma0); st.ty = axis(st.beta - st.beta0); }
+  else { st.tx = st.ty = 0; }
+  const r = tray.clientWidth / 2 - 30;
+  $('ball').style.transform = `translate(${st.tx / 100 * r}px, ${st.ty / 100 * r}px)`;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ---------- ボタン類 ---------- */
+const act = $('btnAction');
+act.addEventListener('pointerdown', () => { st.held = true; st.latch = true; act.classList.add('down'); });
+['pointerup', 'pointercancel', 'pointerleave'].forEach(t => act.addEventListener(t, () => { st.held = false; act.classList.remove('down'); }));
+
+$('btnZero').onclick = () => {
+  if (!st.sensor) { say('傾きセンサーが動いていません', true); return; }
+  st.beta0 = st.beta; st.gamma0 = st.gamma; say('今の角度を水平にしました');
+};
+
+function renderSeg() {
+  document.querySelectorAll('#seg button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.r === st.range)));
+}
+document.querySelectorAll('#seg button').forEach(b => b.onclick = () => { st.range = +b.dataset.r; store.set('tilt.range', st.range); renderSeg(); });
+renderSeg();
+
+/* ---------- Bluetooth ---------- */
+function setConn(on, name) {
+  $('btnConn').classList.toggle('on', on);
+  $('connLabel').textContent = on ? (name || 'PC') + ' 接続中' : 'PCに接続';
+  if (!on) st.ch = null;
+}
+$('btnConn').onclick = async () => {
+  if (!navigator.bluetooth) { say('このブラウザはBluetoothに対応していません。Bluefy で開いてください', true); return; }
+  if (st.dev && st.dev.gatt.connected) { st.dev.gatt.disconnect(); return; }
+  try {
+    say('PCを探しています…');
+    const dev = await navigator.bluetooth.requestDevice({ filters: [{ services: [SVC] }] });
+    st.dev = dev;
+    dev.addEventListener('gattserverdisconnected', () => { setConn(false); say('PCとの接続が切れました', true); });
+    const gs = await dev.gatt.connect();
+    const s = await gs.getPrimaryService(SVC);
+    st.ch = await s.getCharacteristic(CH);
+    setConn(true, dev.name);
+    say(st.sensor ? 'つながりました。丸ボタンでスタート！' : 'つながりました。トレイを指でなぞって操作できます');
+  } catch (e) {
+    setConn(false);
+    say(e.name === 'NotFoundError' ? 'PCの選択がキャンセルされました' : '接続できませんでした：' + e.message, e.name !== 'NotFoundError');
+  }
+};
+
+async function pump() {
+  if (!st.ch || st.inflight) return;
+  st.inflight = true;
+  const b = (st.held || st.latch) ? 1 : 0;
+  const pkt = new Int8Array([st.tx, st.ty, b]);
+  try {
+    if (st.ch.writeValueWithoutResponse) await st.ch.writeValueWithoutResponse(pkt);
+    else await st.ch.writeValue(pkt);
+    if (b) st.latch = false;
+  } catch (e) { /* 一時的な送信失敗は無視して次のフレームで送り直す */ }
+  st.inflight = false;
+}
+setInterval(pump, 33);
+
+say(needsPermission ? 'まず上の緑のボタンでセンサーを有効にしてください' : '右上の「PCに接続」から始めてください');
+</script>
+</body>
+</html>
